@@ -1,0 +1,71 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum SupportedLanguage {
+  PYTHON
+  JAVASCRIPT
+}
+
+enum CodeSessionStatus {
+  ACTIVE
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  TIMEOUT
+}
+
+model CodeSession {
+  id         String            @id @default(uuid())
+  language   SupportedLanguage
+  sourceCode String            @default("")
+  status     CodeSessionStatus @default(ACTIVE)
+  version    Int               @default(1)
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  executions Execution[]
+}
+
+model Execution {
+  id              String          @id @default(uuid())
+  sessionId       String
+  status          ExecutionStatus @default(QUEUED)
+  queuedAt        DateTime        @default(now())
+  startedAt       DateTime?
+  completedAt     DateTime?
+  stdout          String?
+  stderr          String?
+  executionTimeMs Int?
+  attemptCount    Int             @default(0)
+  errorType       String?
+  errorMessage    String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  session CodeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  events  ExecutionEvent[]
+
+  @@index([sessionId, queuedAt])
+  @@index([status, queuedAt])
+}
+
+model ExecutionEvent {
+  id           String           @id @default(uuid())
+  executionId  String
+  fromStatus   ExecutionStatus?
+  toStatus     ExecutionStatus
+  at           DateTime         @default(now())
+  metadataJson Json?
+
+  execution Execution @relation(fields: [executionId], references: [id], onDelete: Cascade)
+
+  @@index([executionId, at])
+}

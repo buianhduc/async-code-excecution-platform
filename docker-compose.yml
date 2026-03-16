@@ -1,0 +1,86 @@
+services:
+  postgres:
+    build:
+      context: .
+      dockerfile: Dockerfile.postgres
+    container_name: code-platform-postgres
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-code_platform_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-code_platform_password}
+      POSTGRES_DB: ${POSTGRES_DB:-code_platform}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-code_platform_user} -d ${POSTGRES_DB:-code_platform}']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: code-platform-redis
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: code-platform-api
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      PORT: ${PORT:-3000}
+      DATABASE_URL: postgresql://${POSTGRES_USER:-code_platform_user}:${POSTGRES_PASSWORD:-code_platform_password}@postgres:5432/${POSTGRES_DB:-code_platform}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      MAX_SOURCE_BYTES: ${MAX_SOURCE_BYTES:-50000}
+      MAX_OUTPUT_BYTES: ${MAX_OUTPUT_BYTES:-50000}
+      MAX_RUNTIME_MS: ${MAX_RUNTIME_MS:-5000}
+      MAX_MEMORY_BYTES: ${MAX_MEMORY_BYTES:-134217728}
+      RUN_RATE_LIMIT_COUNT: ${RUN_RATE_LIMIT_COUNT:-10}
+      RUN_RATE_LIMIT_WINDOW_MS: ${RUN_RATE_LIMIT_WINDOW_MS:-60000}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-3}
+      PYTHON_BIN: ${PYTHON_BIN:-python3}
+    command: sh -c "npm run prisma:migrate && npm run start:prod"
+    ports:
+      - '${PORT:-3000}:3000'
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    container_name: code-platform-worker
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      NODE_ENV: development
+      DATABASE_URL: postgresql://${POSTGRES_USER:-code_platform_user}:${POSTGRES_PASSWORD:-code_platform_password}@postgres:5432/${POSTGRES_DB:-code_platform}?schema=public
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-4}
+      WORKER_STALE_EXECUTION_MS: ${WORKER_STALE_EXECUTION_MS:-30000}
+      MAX_OUTPUT_BYTES: ${MAX_OUTPUT_BYTES:-50000}
+      MAX_RUNTIME_MS: ${MAX_RUNTIME_MS:-5000}
+      MAX_MEMORY_BYTES: ${MAX_MEMORY_BYTES:-134217728}
+      QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-3}
+      PYTHON_BIN: ${PYTHON_BIN:-python3}
+    command: sh -c "npm run prisma:migrate && npm run start:worker"
+
+volumes:
+  postgres-data:
