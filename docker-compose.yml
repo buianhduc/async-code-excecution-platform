@@ -54,14 +54,14 @@ services:
       RUN_RATE_LIMIT_WINDOW_MS: ${RUN_RATE_LIMIT_WINDOW_MS:-60000}
       QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-3}
       PYTHON_BIN: ${PYTHON_BIN:-python3}
-    command: sh -c "npm run prisma:migrate && npm run start:prod"
+    command: sh -c "npm run start:prod"
     ports:
       - '${PORT:-3000}:3000'
 
   worker:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: Dockerfile.worker
     container_name: code-platform-worker
     depends_on:
       postgres:
@@ -80,7 +80,7 @@ services:
       MAX_MEMORY_BYTES: ${MAX_MEMORY_BYTES:-134217728}
       QUEUE_ATTEMPTS: ${QUEUE_ATTEMPTS:-3}
       PYTHON_BIN: ${PYTHON_BIN:-python3}
-    command: sh -c "npm run prisma:migrate && npm run start:worker"
+    command: sh -c "npm run start:worker"
 
 volumes:
   postgres-data:
